@@ -1,8 +1,10 @@
+use std::error::Error;
 use std::io;
 use std::io::Write;
 use reqwest;
 use serde;
 use serde::Deserialize;
+use tokio;
 
 #[derive(Deserialize, Debug)]
 struct Word {
@@ -31,8 +33,9 @@ impl Word {
     }
 }
 
-fn main() {
-    let mut word = get_word();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let mut word = get_word().await?;
 
     println!(
         "Random word acquired! (hint: it is {} characters long). Now you have to guess it!",
@@ -58,6 +61,11 @@ fn main() {
             break;
         }
 
+        if input == "!list" {
+            println!("{}", word.guessed_chars.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(","));
+            break;
+        }
+
         if input.chars().count() != 1 {
             println!("Please enter a single character.");
             continue;
@@ -77,12 +85,15 @@ fn main() {
             break;
         }
     }
+
+    Ok(())
 }
 
-fn get_word() -> Word {
-    let body = reqwest::blocking::get(API_URL)
-        .expect("Failed to fetch word from the API")
+async fn get_word() -> Result<Word, Box<dyn Error>> {
+    let body = reqwest::get(API_URL)
+        .await?
         .text()
-        .expect("Failed to read response body");
-    serde_json::from_str(&body).expect("Failed to parse JSON")
+        .await?;
+
+    serde_json::from_str(&body).map_err(|err| Box::new(err) as Box<dyn Error>)
 }
